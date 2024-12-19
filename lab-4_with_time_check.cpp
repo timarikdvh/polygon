@@ -2,6 +2,7 @@
 #include <vector>
 #include <cmath>
 #include <limits>
+#include <chrono>
 
 using namespace std;
 
@@ -48,12 +49,16 @@ void generateClusters(vector<vector<double>>& clusters, vector<double>& points, 
 }
 
 int main() {
-    vector<double> points = {9, 10.4, -21, -10, 450.3, -2318, 344, 3987, -5, 2495};
-    int numClusters = 6;
+    vector<double> points = {9, 10.4, -21, -10, 450.3, 1230, 3478, -1234, -123.12, -21,12, 123, -1239};
+    int numClusters = 5;
 
     vector<vector<double>> clusters(numClusters);
 
+    auto start_time = chrono::high_resolution_clock::now();
     generateClusters(clusters, points, 0);
+    auto end_time = chrono::high_resolution_clock::now();
+    chrono::duration<double> elapsed_time = end_time - start_time;
+
 
     cout << "Best Score: " << bestScore << endl;
     cout << "Best Clusters: " << endl;
@@ -64,6 +69,8 @@ int main() {
         }
         cout << "]" << endl;
     }
+
+    cout << "Time: " << elapsed_time.count() << " seconds." << endl;
 
     return 0;
 }

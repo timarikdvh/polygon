@@ -5,9 +5,3 @@ massive_generator.py
 CMakeLists.txt
 
 .vscode/
-
-datagenerator.cpp
-
-datagenerator.exe
-
-.cmake-build-debug/
