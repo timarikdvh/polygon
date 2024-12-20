@@ -5,3 +5,5 @@ massive_generator.py
 CMakeLists.txt
 
 .vscode/
+
+.idea
