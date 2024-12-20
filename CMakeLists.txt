@@ -4,6 +4,4 @@ project(polygon)
 set(CMAKE_CXX_STANDARD 14)
 
 add_executable(polygon
-        lab-4.cpp
-        lab-4.cpp
-        lab-4_with_time_check.cpp)
+        lab-5.cpp)
