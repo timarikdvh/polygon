@@ -1,59 +1,267 @@
-#include <vector>
 #include <iostream>
-#include <algorithm>
-#include <chrono>
-#include <random>
+#include <vector>
+#include <queue>
+#include <stack>
+#include <map>
+#include <set>
+#include <limits>
 #include <cmath>
+#include <fstream>
+#include <sstream>
+#include <chrono>
+#include <algorithm>
+
 using namespace std;
-std::random_device r;
-std::default_random_engine e(r());
-std::uniform_int_distribution<int> dist(0,20);
+using namespace chrono;
 
-int minTaps(int n, vector<int>& ranges) {
-    vector<int> maxRange(n + 1, 0);
+using Graph = map<int, vector<pair<int, double>>>;
+using Coordinates = map<int, pair<double, double>>;
 
-    for (int i = 0; i <= n; ++i) {
-        int left = max(0, i - ranges[i]);
-        int right = min(n, i + ranges[i]);
-        maxRange[left] = max(maxRange[left], right);
+void parseGraph(const string& filename, Graph& graph, Coordinates& coordinates) {
+    ifstream file(filename);
+    if (!file.is_open()) {
+        cerr << "Error opening file: " << filename << endl;
+        return;
     }
 
-    int taps = 0, currentEnd = 0, farthest = 0;
+    map<pair<double, double>, int> coordinateToId;
+    int nodeId = 0;
 
-    for (int i = 0; i <= n; ++i) {
-        if (i > farthest) {
-            return -1;
+    auto getId = [&](double lon, double lat) {
+        pair<double, double> coord = {lon, lat};
+        if (!coordinateToId.count(coord)) {
+            coordinateToId[coord] = nodeId;
+            coordinates[nodeId] = coord;
+            return nodeId++;
         }
+        return coordinateToId[coord];
+    };
 
-        farthest = max(farthest, maxRange[i]);
+    string line;
+    while (getline(file, line)) {
+        size_t colon = line.find(":");
+        if (colon == string::npos) continue;
 
-        if (i == currentEnd) {
-            ++taps;
-            currentEnd = farthest;
-            if (currentEnd >= n) {
-                break;
+        string parentNode = line.substr(0, colon);
+        string children = line.substr(colon + 1);
+
+        double lon1, lat1;
+        sscanf(parentNode.c_str(), "%lf,%lf", &lon1, &lat1);
+        int parentId = getId(lon1, lat1);
+
+        stringstream ss(children);
+        string child;
+        while (getline(ss, child, ';')) {
+            double lon2, lat2, weight;
+            if (sscanf(child.c_str(), "%lf,%lf,%lf", &lon2, &lat2, &weight) == 3) {
+                int childId = getId(lon2, lat2);
+                graph[parentId].emplace_back(childId, weight);
+                graph[childId].emplace_back(parentId, weight);
             }
         }
     }
-
-    return taps;
 }
 
-int main(){
-    vector<int> nums;
-    for (int i = pow(10, 7); i < pow(10, 9); i += pow(10,7)) {
-        for (int j = 0; j < i; j++){
-            nums.push_back(dist(e));
-        }
-        auto start_time = chrono::high_resolution_clock::now();
-        cout << minTaps(i - 1,nums) << endl;
-//        for (int el : nums){
-//            cout << el << " ";
-//        }
-//        cout << endl;
-        auto end_time = chrono::high_resolution_clock::now();
-        chrono::duration<double> elapsed_time = end_time - start_time;
-        cout << "Time: " << elapsed_time.count() << " seconds. Elems: " << i << endl;
-        nums.clear();
+int findNodeByCoordinates(const Coordinates& coordinates, double lon, double lat) {
+    for (const auto& [node, coord] : coordinates)
+        if (fabs(coord.first - lon) < 1e-6 && fabs(coord.second - lat) < 1e-6)
+            return node;
+    return -1;
+}
+
+void printPath(const map<int, int>& parent, int start, int goal, const Graph& graph) {
+    vector<int> path;
+    double weight = 0;
+    for (int cur = goal; cur != start; cur = parent.at(cur)) {
+        path.push_back(cur);
+        for (const auto& [neighbor, w] : graph.at(parent.at(cur)))
+            if (neighbor == cur) weight += w;
     }
+    path.push_back(start);
+
+    reverse(path.begin(), path.end());
+    //cout << "Path: ";
+    //for (int node : path) cout << node << " ";
+    cout << "\nTotal weight: " << weight << endl;
+}
+
+void DFS(const Graph& graph, int start, int goal) {
+    auto start_time = high_resolution_clock::now();
+
+    stack<int> s;
+    set<int> visited;
+    map<int, int> parent;
+    s.push(start);
+
+    while (!s.empty()) {
+        int current = s.top();
+        s.pop();
+
+        if (visited.count(current)) continue;
+        visited.insert(current);
+
+        if (current == goal) {
+            auto end_time = high_resolution_clock::now();
+            printPath(parent, start, goal, graph);
+            cout << "DFS Time: " << duration_cast<milliseconds>(end_time - start_time).count() << " ms\n";
+            return;
+        }
+
+        for (const auto& [neighbor, _] : graph.at(current)) {
+            if (!visited.count(neighbor)) {
+                s.push(neighbor);
+                parent[neighbor] = current;
+            }
+        }
+    }
+    cout << "DFS: No path found.\n";
+}
+
+void BFS(const Graph& graph, int start, int goal) {
+    auto start_time = high_resolution_clock::now();
+
+    queue<int> q;
+    set<int> visited;
+    map<int, int> parent;
+    q.push(start);
+
+    while (!q.empty()) {
+        int current = q.front();
+        q.pop();
+
+        if (visited.count(current)) continue;
+        visited.insert(current);
+
+        if (current == goal) {
+            auto end_time = high_resolution_clock::now();
+            printPath(parent, start, goal, graph);
+            cout << "BFS Time: " << duration_cast<milliseconds>(end_time - start_time).count() << " ms\n";
+            return;
+        }
+
+        for (const auto& [neighbor, _] : graph.at(current)) {
+            if (!visited.count(neighbor)) {
+                q.push(neighbor);
+                parent[neighbor] = current;
+            }
+        }
+    }
+    cout << "BFS: No path found.\n";
+}
+
+void Dijkstra(const Graph& graph, int start, int goal) {
+    auto start_time = high_resolution_clock::now();
+
+    priority_queue<pair<double, int>, vector<pair<double, int>>, greater<>> pq;
+    map<int, double> distances;
+    map<int, int> parent;
+
+    for (const auto& node : graph) distances[node.first] = numeric_limits<double>::infinity();
+    distances[start] = 0;
+
+    pq.emplace(0, start);
+
+    while (!pq.empty()) {
+        auto [current_distance, current_node] = pq.top();
+        pq.pop();
+
+        if (current_node == goal) {
+            auto end_time = high_resolution_clock::now();
+            printPath(parent, start, goal, graph);
+            cout << "Dijkstra Time: " << duration_cast<milliseconds>(end_time - start_time).count() << " ms\n";
+            return;
+        }
+
+        for (const auto& [neighbor, weight] : graph.at(current_node)) {
+            double new_distance = current_distance + weight;
+
+            if (new_distance < distances[neighbor]) {
+                distances[neighbor] = new_distance;
+                parent[neighbor] = current_node;
+                pq.emplace(new_distance, neighbor);
+            }
+        }
+    }
+    cout << "Dijkstra: No path found.\n";
+}
+
+void AStar(const Graph& graph, int start, int goal, const Coordinates& coordinates) {
+    auto start_time = high_resolution_clock::now();
+
+    auto heuristic = [&](int node) {
+        auto [lon1, lat1] = coordinates.at(node);
+        auto [lon2, lat2] = coordinates.at(goal);
+        return sqrt((lon1 - lon2) * (lon1 - lon2) + (lat1 - lat2) * (lat1 - lat2));
+    };
+
+    priority_queue<pair<double, int>, vector<pair<double, int>>, greater<>> pq;
+    map<int, double> g_costs;
+    map<int, double> f_costs;
+    map<int, int> parent;
+
+    for (const auto& node : graph) {
+        g_costs[node.first] = numeric_limits<double>::infinity();
+        f_costs[node.first] = numeric_limits<double>::infinity();
+    }
+    g_costs[start] = 0;
+    f_costs[start] = heuristic(start);
+
+    pq.emplace(f_costs[start], start);
+
+    while (!pq.empty()) {
+        auto [current_f_cost, current_node] = pq.top();
+        pq.pop();
+
+        if (current_node == goal) {
+            auto end_time = high_resolution_clock::now();
+            printPath(parent, start, goal, graph);
+            cout << "A* Time: " << duration_cast<milliseconds>(end_time - start_time).count() << " ms\n";
+            return;
+        }
+
+        for (const auto& [neighbor, weight] : graph.at(current_node)) {
+            double tentative_g_cost = g_costs[current_node] + weight;
+
+            if (tentative_g_cost < g_costs[neighbor]) {
+                g_costs[neighbor] = tentative_g_cost;
+                f_costs[neighbor] = tentative_g_cost + heuristic(neighbor);
+                parent[neighbor] = current_node;
+                pq.emplace(f_costs[neighbor], neighbor);
+            }
+        }
+    }
+    cout << "A*: No path found.\n";
+}
+
+int main() {
+    string filename = "spb_graph.txt";
+
+    Graph graph;
+    Coordinates coordinates;
+    parseGraph(filename, graph, coordinates);
+
+    double startLon = 30.2412187, startLat = 59.8512646;
+    double goalLon = 30.2931829, goalLat = 60.0152015;
+
+    int start = findNodeByCoordinates(coordinates, startLon, startLat);
+    int goal = findNodeByCoordinates(coordinates, goalLon, goalLat);
+
+    if (start == -1 || goal == -1) {
+        cerr << "Error: Start or goal node not found by coordinates." << endl;
+        return 1;
+    }
+
+    cout << "Running DFS:\n";
+    DFS(graph, start, goal);
+
+    cout << "\nRunning BFS:\n";
+    BFS(graph, start, goal);
+
+    cout << "\nRunning Dijkstra:\n";
+    Dijkstra(graph, start, goal);
+
+    cout << "\nRunning A*:\n";
+    AStar(graph, start, goal, coordinates);
+
+    return 0;
 }
